@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/*.db
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+tests/
+TestResults/
