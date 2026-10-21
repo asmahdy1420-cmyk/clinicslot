@@ -1,11 +1,30 @@
 # ClinicSlot
 
-![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 ClinicSlot is a small appointment-booking API for clinics, built with ASP.NET Core 8 Minimal APIs and EF Core 8.
 It works out free slots from practitioners' weekly hours, breaks, time off, existing bookings and buffers, all in
 the clinic's own time zone (DST included). The database guarantees that two appointments can never overlap.
+
+## Screenshots
+
+Captured from the Docker image running locally with an empty SQLite database and a few requests made by hand. The clinic, practitioner and patients are demo data.
+
+![Swagger UI listing the appointment, clinic and practitioner endpoints](docs/screenshots/swagger-ui.png)
+
+Swagger UI at `/swagger` (enabled in Development, or with `Swagger__Enabled=true`).
+
+![Availability for 25 October 2026 in Europe/London, where 01:00 occurs twice](docs/screenshots/availability-dst.png)
+
+Availability on the day the clocks go back in London: a 00:00-04:00 shift gives five hourly slots, and 01:00 appears once at +01:00 and once at +00:00.
+
+![First booking returns 201, the same slot again returns 409 Conflict](docs/screenshots/double-booking.png)
+
+Booking the same slot twice: the second request is rejected with `409 Conflict`.
+
+![Cancelling inside the 24 hour cutoff returns 422, outside it returns 200](docs/screenshots/cancellation-rule.png)
+
+The cancellation rule with a 24 hour cutoff: an appointment starting in 17 hours cannot be cancelled (`422`), one starting in a week can.
 
 ## Why
 
@@ -78,7 +97,7 @@ The algorithm lives in `AvailabilityCalculator`. It is a pure function: it takes
 For each local date in the requested range it does four things:
 
 1. **Working windows.** Take that weekday's working hours and cut out the breaks.
-   `09:00–17:00` with lunch `12:00–13:00` gives two windows.
+   `09:00-17:00` with lunch `12:00-13:00` gives two windows.
 2. **Resolve to instants.** Convert each window's wall-clock start and end to UTC using `TimeZoneInfo`:
    - a time inside a *spring-forward gap* (e.g. 01:30 in London on 29 March) moves forward to the end of the gap;
    - a time that occurs *twice* at fall-back resolves to the earlier instant for a window start and the later
@@ -94,7 +113,7 @@ For each local date in the requested range it does four things:
 
 Stepping on the UTC line means a 60-minute appointment always lasts 60 real minutes. Wall-clock alignment survives
 because real-world DST shifts are multiples of the slot interval. Every interval is half-open, so a slot can end
-exactly when the next appointment starts. On London's spring-forward day, a `00:00–04:00` shift with hourly slots
+exactly when the next appointment starts. On London's spring-forward day, a `00:00-04:00` shift with hourly slots
 offers `00:00+00:00`, `02:00+01:00` and `03:00+01:00`. On the fall-back day it offers five slots, and `01:00` appears
 twice, once at `+01:00` and once at `+00:00`. Both cases are covered by tests.
 
@@ -110,8 +129,8 @@ database itself refuses any overlapping booking**. This holds under any isolatio
 instances.
 
 ```text
-Appointment A 09:00–09:30 + 10 min buffer  ->  claims 09:00 09:05 ... 09:35
-Appointment B 09:20–09:50                  ->  claims 09:20 ... -> PK violation -> 409
+Appointment A 09:00-09:30 + 10 min buffer  ->  claims 09:00 09:05 ... 09:35
+Appointment B 09:20-09:50                  ->  claims 09:20 ... -> PK violation -> 409
 ```
 
 Before inserting, the booking service also checks the slot. A slot outside the schedule returns `422`. A slot that
